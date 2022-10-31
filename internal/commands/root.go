@@ -2,10 +2,12 @@ package commands
 
 import (
 	"fmt"
-	"github.com/buglloc/deblocker/internal/config"
+	"os"
+
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
-	"os"
+
+	"github.com/buglloc/deblocker/internal/config"
 )
 
 var (

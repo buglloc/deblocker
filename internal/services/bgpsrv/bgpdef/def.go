@@ -2,6 +2,7 @@ package bgpdef
 
 import (
 	"fmt"
+
 	bgpapi "github.com/osrg/gobgp/v3/api"
 	"google.golang.org/protobuf/proto"
 	apb "google.golang.org/protobuf/types/known/anypb"

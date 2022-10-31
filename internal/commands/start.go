@@ -3,13 +3,15 @@ package commands
 import (
 	"context"
 	"fmt"
-	"github.com/buglloc/deblocker/internal/services/deblocker"
-	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
+
+	"github.com/buglloc/deblocker/internal/services/deblocker"
 )
 
 var startCmd = &cobra.Command{

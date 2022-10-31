@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	_ "go.uber.org/automaxprocs"
 	"os"
+
+	_ "go.uber.org/automaxprocs"
 
 	"github.com/buglloc/deblocker/internal/commands"
 )
