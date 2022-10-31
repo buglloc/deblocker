@@ -1,11 +1,9 @@
 package deblocker
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -67,9 +65,11 @@ func NewSiteLord(bgp *bgpsrv.Server, cfg config.Checker) (*SiteLord, error) {
 		hck:           hck,
 		concurrency:   cfg.Concurrency,
 		toCheck:       make(chan siteRR, cfg.QueueSize),
-		closed:        make(chan struct{}),
 		decisionsTTL:  cfg.DecisionsTTL,
 		ipsHistoryTTL: cfg.IPHistoryTTL,
+		directDomains: normalizeDomains(cfg.DirectDomains),
+		vpnDomains:    normalizeDomains(cfg.VPNDomains),
+		closed:        make(chan struct{}),
 		ctx:           ctx,
 		shutdownFn:    cancel,
 	}
@@ -86,13 +86,6 @@ func NewSiteLord(bgp *bgpsrv.Server, cfg config.Checker) (*SiteLord, error) {
 				out.deleteRR(item.Value())
 			}),
 	)
-
-	if err := out.loadDomains(cfg.DirectDomains, cfg.VPNDomains); err != nil {
-		out.decisions.Stop()
-		out.ipsHistory.Stop()
-		cancel()
-		return nil, fmt.Errorf("unable to load domains: %w", err)
-	}
 
 	return out, nil
 }
@@ -131,6 +124,7 @@ func (l *SiteLord) Shutdown(ctx context.Context) error {
 
 func (l *SiteLord) checkWorker(toCheck <-chan siteRR) {
 	for rr := range toCheck {
+		//singleflight.Group{}
 		blocked := l.hck.IsBlocked(l.ctx, rr.FQDN, rr.IP.String(), rr.Kind)
 		var decision Decision
 		if blocked {
@@ -189,37 +183,6 @@ func (l *SiteLord) updateBGPRecords(site string, delete bool) {
 		l.upsertRR(rr)
 		return true
 	})
-}
-
-func (l *SiteLord) loadDomains(directPath, vpnPath string) error {
-	doLoad := func(filepath string) ([]string, error) {
-		f, err := os.Open(filepath)
-		if err != nil && os.IsNotExist(err) {
-			return nil, nil
-		}
-
-		scanner := bufio.NewScanner(f)
-		var out []string
-		for scanner.Scan() {
-			fqdn := strings.Trim(scanner.Text(), ".")
-			out = append(out, fmt.Sprintf(".%s.", fqdn))
-		}
-
-		return out, scanner.Err()
-	}
-
-	var err error
-	l.directDomains, err = doLoad(directPath)
-	if err != nil {
-		return fmt.Errorf("unable to load direct domains: %w", err)
-	}
-
-	l.vpnDomains, err = doLoad(vpnPath)
-	if err != nil {
-		return fmt.Errorf("unable to load vpn domains: %w", err)
-	}
-
-	return nil
 }
 
 func (l *SiteLord) onResolvedIP(rr dnssrv.RR) {
@@ -342,4 +305,13 @@ func ipv6ToNet(addr net.IP) net.IPNet {
 		IP:   addr,
 		Mask: net.CIDRMask(32, 8*net.IPv6len),
 	}
+}
+
+func normalizeDomains(domains []string) []string {
+	out := make([]string, len(domains))
+	for i, domain := range domains {
+		d := strings.Trim(domain, ".")
+		out[i] = fmt.Sprintf(".%s.", d)
+	}
+	return out
 }
