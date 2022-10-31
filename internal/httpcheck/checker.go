@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/buglloc/certifi"
-	"github.com/buglloc/deblocker/internal/services/dnssrv"
-	"github.com/rs/zerolog/log"
 	"io"
 	"net/http"
 	"sync"
+
+	"github.com/buglloc/certifi"
+	"github.com/rs/zerolog/log"
+
+	"github.com/buglloc/deblocker/internal/services/dnssrv"
 )
 
 type Checker struct {

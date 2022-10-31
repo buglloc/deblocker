@@ -4,18 +4,20 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/buglloc/deblocker/internal/config"
-	"github.com/buglloc/deblocker/internal/httpcheck"
-	"github.com/buglloc/deblocker/internal/services/bgpsrv"
-	"github.com/buglloc/deblocker/internal/services/dnssrv"
-	"github.com/karlseguin/ccache/v3"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/net/publicsuffix"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/karlseguin/ccache/v3"
+	"github.com/rs/zerolog/log"
+	"golang.org/x/net/publicsuffix"
+
+	"github.com/buglloc/deblocker/internal/config"
+	"github.com/buglloc/deblocker/internal/httpcheck"
+	"github.com/buglloc/deblocker/internal/services/bgpsrv"
+	"github.com/buglloc/deblocker/internal/services/dnssrv"
 )
 
 type Decision uint8
@@ -267,7 +269,6 @@ func (l *SiteLord) onResolvedIP(rr dnssrv.RR) {
 			})
 		default:
 			err = fmt.Errorf("unsupported ip kind: %s", rr.Kind)
-			return
 		}
 
 		if err != nil {

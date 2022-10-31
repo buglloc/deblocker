@@ -3,13 +3,15 @@ package bgpsrv
 import (
 	"context"
 	"fmt"
-	"github.com/buglloc/deblocker/internal/services/bgpsrv/bgpdef"
+	"net"
+	"strings"
+
 	bgpapi "github.com/osrg/gobgp/v3/api"
 	bgpsrv "github.com/osrg/gobgp/v3/pkg/server"
 	"github.com/rs/zerolog/log"
 	apb "google.golang.org/protobuf/types/known/anypb"
-	"net"
-	"strings"
+
+	"github.com/buglloc/deblocker/internal/services/bgpsrv/bgpdef"
 )
 
 type Server struct {

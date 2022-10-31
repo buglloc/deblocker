@@ -3,10 +3,11 @@ package dnssrv
 import (
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"net"
 	"net/url"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 const (

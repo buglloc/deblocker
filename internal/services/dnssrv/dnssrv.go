@@ -4,12 +4,18 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
+	"net/url"
+
 	"github.com/buglloc/certifi"
 	"github.com/miekg/dns"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
-	"net"
-	"net/url"
+)
+
+const (
+	// something like browser do
+	minimumTTL = 90
 )
 
 type Server struct {
@@ -139,8 +145,8 @@ func (s *Server) processHandler(rsp, req *dns.Msg) {
 
 	for _, rr := range rsp.Answer {
 		ttl := rr.Header().Ttl
-		if ttl < 90 {
-			ttl = 90
+		if ttl < minimumTTL {
+			ttl = minimumTTL
 		}
 
 		switch v := rr.(type) {
@@ -149,14 +155,14 @@ func (s *Server) processHandler(rsp, req *dns.Msg) {
 				FQDN: fqdn,
 				Kind: IPKindV4,
 				IP:   v.A,
-				TTL:  rr.Header().Ttl,
+				TTL:  ttl,
 			})
 		case *dns.AAAA:
 			s.handler(RR{
 				FQDN: fqdn,
 				Kind: IPKindV4,
 				IP:   v.AAAA,
-				TTL:  rr.Header().Ttl,
+				TTL:  ttl,
 			})
 		}
 	}

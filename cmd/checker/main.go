@@ -4,11 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/buglloc/deblocker/internal/httpcheck"
-	"github.com/buglloc/deblocker/internal/services/dnssrv"
-	"github.com/rs/zerolog/log"
 	"net"
 	"os"
+
+	"github.com/rs/zerolog/log"
+
+	"github.com/buglloc/deblocker/internal/httpcheck"
+	"github.com/buglloc/deblocker/internal/services/dnssrv"
 )
 
 func fatalf(format string, args ...interface{}) {

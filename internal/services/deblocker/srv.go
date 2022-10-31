@@ -3,10 +3,12 @@ package deblocker
 import (
 	"context"
 	"fmt"
+
+	"golang.org/x/sync/errgroup"
+
 	"github.com/buglloc/deblocker/internal/config"
 	"github.com/buglloc/deblocker/internal/services/bgpsrv"
 	"github.com/buglloc/deblocker/internal/services/dnssrv"
-	"golang.org/x/sync/errgroup"
 )
 
 type Server struct {
