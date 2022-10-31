@@ -20,7 +20,7 @@ bgp:
   listen_addrs: []
   router_id: 1.3.3.7
   router_asn: 65543
-  peerASN: 65542
+  peer_asn: 65542
   peer_nets:
     - 0.0.0.0/0
     - ::/0
