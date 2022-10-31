@@ -33,7 +33,7 @@ type BGP struct {
 	ListenAddrs      []string `yaml:"listen_addrs"`
 	RouterID         string   `yaml:"router_id"`
 	RouterASN        uint32   `yaml:"router_asn"`
-	PeerASN          uint32   `yaml:"peerASN"`
+	PeerASN          uint32   `yaml:"peer_asn"`
 	PeerAuthPassword string   `yaml:"peer_auth_password"`
 	PeerNets         []string `yaml:"peer_nets"`
 }
