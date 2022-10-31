@@ -47,8 +47,8 @@ type Checker struct {
 	IPHistoryTTL  time.Duration `yaml:"ip_history_ttl"`
 	DecisionsSize int64         `yaml:"decisions_size"`
 	DecisionsTTL  time.Duration `yaml:"decisions_ttl"`
-	DirectDomains string        `yaml:"direct_domains"`
-	VPNDomains    string        `yaml:"vpn_domains"`
+	DirectDomains []string      `yaml:"direct_domains"`
+	VPNDomains    []string      `yaml:"vpn_domains"`
 }
 
 type Config struct {
@@ -58,7 +58,7 @@ type Config struct {
 	Checker Checker `yaml:"checker"`
 }
 
-func LoadConfig(cfgPath string) (*Config, error) {
+func LoadConfig(configs ...string) (*Config, error) {
 	out := &Config{
 		Debug: true,
 		DNS: DNS{
@@ -96,23 +96,33 @@ func LoadConfig(cfgPath string) (*Config, error) {
 			IPHistoryTTL:  10 * time.Minute,
 			DecisionsSize: 129536,
 			DecisionsTTL:  30 * time.Minute,
-			DirectDev:     "wlan0",
-			VPNDev:        "eu",
+			DirectDomains: []string{
+				".ru",
+			},
 		},
 	}
 
-	if cfgPath == "" {
+	if len(configs) == 0 {
 		return out, nil
 	}
 
-	f, err := os.Open(cfgPath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to open config file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
+	for _, cfgPath := range configs {
+		err := func() error {
+			f, err := os.Open(cfgPath)
+			if err != nil {
+				return fmt.Errorf("unable to open config file: %w", err)
+			}
+			defer func() { _ = f.Close() }()
 
-	if err := yaml.NewDecoder(f).Decode(&out); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
+			if err := yaml.NewDecoder(f).Decode(&out); err != nil {
+				return fmt.Errorf("invalid config: %w", err)
+			}
+
+			return nil
+		}()
+		if err != nil {
+			return nil, fmt.Errorf("unable to load config %q: %w", cfgPath, err)
+		}
 	}
 
 	return out, nil

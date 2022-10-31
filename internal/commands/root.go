@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	cfgPath string
+	configs []string
 	cfg     *config.Config
 )
 
@@ -33,7 +33,7 @@ func init() {
 	)
 
 	flags := rootCmd.PersistentFlags()
-	flags.StringVar(&cfgPath, "cfg", "", "config file")
+	flags.StringSliceVar(&configs, "cfg", nil, "config file")
 
 	rootCmd.AddCommand(
 		startCmd,
@@ -42,7 +42,7 @@ func init() {
 
 func initConfig() {
 	var err error
-	cfg, err = config.LoadConfig(cfgPath)
+	cfg, err = config.LoadConfig(configs...)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "unable to load config: %v\n", err)
 		os.Exit(1)
