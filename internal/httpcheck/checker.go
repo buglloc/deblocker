@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/buglloc/certifi"
-	"github.com/rs/zerolog/log"
 
 	"github.com/buglloc/deblocker/internal/services/dnssrv"
 )
@@ -87,16 +86,7 @@ func (c *Checker) IsBlocked(ctx context.Context, fqdn, ip string, ipKind dnssrv.
 		return !directOK && vpnOK
 	}
 
-	blocked := doCheck()
-	if blocked {
-		// recheck
-		blocked = doCheck()
-		if !blocked {
-			log.Warn().Str("fqdn", fqdn).Str("ip", ip).Msg("flaky fqdn")
-		}
-	}
-
-	return blocked
+	return doCheck()
 }
 
 func (c *Checker) checkFqdn(ctx context.Context, httpc *http.Client, uri string) (bool, error) {

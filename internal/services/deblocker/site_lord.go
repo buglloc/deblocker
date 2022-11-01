@@ -24,7 +24,8 @@ const (
 	DecisionNone Decision = iota
 	DecisionDirect
 	DecisionVPN
-	DecisionCheck
+	DecisionDirectCheck
+	DecisionVPNCheck
 )
 
 type siteRR struct {
@@ -32,15 +33,23 @@ type siteRR struct {
 	Site string
 }
 
+type VPNSite struct {
+	mu           sync.Mutex
+	blockedFqdns map[string]struct{}
+}
+
 type SiteLord struct {
 	bgp           *bgpsrv.Server
 	hck           *httpcheck.Checker
 	concurrency   int
+	vpnSites      *ccache.Cache[*VPNSite]
+	vpnSitesTTL   time.Duration
 	decisions     *ccache.Cache[Decision]
 	decisionsTTL  time.Duration
-	ipsHistory    *ccache.LayeredCache[dnssrv.RR]
-	ipsHistoryTTL time.Duration
-	toCheck       chan siteRR
+	dnsCache      *ccache.LayeredCache[dnssrv.RR]
+	dnsCacheTTL   time.Duration
+	recheckPeriod time.Duration
+	checkQueue    chan siteRR
 	directDomains []string
 	vpnDomains    []string
 	closed        chan struct{}
@@ -64,22 +73,29 @@ func NewSiteLord(bgp *bgpsrv.Server, cfg config.Checker) (*SiteLord, error) {
 		bgp:           bgp,
 		hck:           hck,
 		concurrency:   cfg.Concurrency,
-		toCheck:       make(chan siteRR, cfg.QueueSize),
+		checkQueue:    make(chan siteRR, cfg.QueueSize),
 		decisionsTTL:  cfg.DecisionsTTL,
-		ipsHistoryTTL: cfg.IPHistoryTTL,
+		dnsCacheTTL:   cfg.IPHistoryTTL,
+		vpnSitesTTL:   cfg.VPNSitesTTL,
 		directDomains: normalizeDomains(cfg.DirectDomains),
 		vpnDomains:    normalizeDomains(cfg.VPNDomains),
+		recheckPeriod: cfg.RecheckPeriod,
 		closed:        make(chan struct{}),
 		ctx:           ctx,
 		shutdownFn:    cancel,
 	}
 
-	out.decisions = ccache.New(
-		ccache.Configure[Decision]().
-			MaxSize(cfg.DecisionsSize),
+	out.vpnSites = ccache.New(
+		ccache.Configure[*VPNSite]().
+			MaxSize(cfg.IPHistorySize),
 	)
 
-	out.ipsHistory = ccache.Layered(
+	out.decisions = ccache.New(
+		ccache.Configure[Decision]().
+			MaxSize(cfg.VPNSitesSize),
+	)
+
+	out.dnsCache = ccache.Layered(
 		ccache.Configure[dnssrv.RR]().
 			MaxSize(cfg.IPHistorySize).
 			OnDelete(func(item *ccache.Item[dnssrv.RR]) {
@@ -98,10 +114,12 @@ func (l *SiteLord) Start() {
 
 	for i := 0; i < l.concurrency; i++ {
 		go func() {
-			l.checkWorker(l.toCheck)
+			l.checkWorker(l.checkQueue)
 			wg.Done()
 		}()
 	}
+
+	go l.offlineWorker(l.recheckPeriod)
 	wg.Wait()
 }
 
@@ -109,11 +127,11 @@ func (l *SiteLord) Shutdown(ctx context.Context) error {
 	l.shutdownFn()
 
 	defer func() {
-		l.ipsHistory.Stop()
+		l.dnsCache.Stop()
 		l.decisions.Stop()
 	}()
 
-	close(l.toCheck)
+	close(l.checkQueue)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -124,17 +142,95 @@ func (l *SiteLord) Shutdown(ctx context.Context) error {
 
 func (l *SiteLord) checkWorker(toCheck <-chan siteRR) {
 	for rr := range toCheck {
-		//singleflight.Group{}
-		blocked := l.hck.IsBlocked(l.ctx, rr.FQDN, rr.IP.String(), rr.Kind)
-		var decision Decision
-		if blocked {
-			decision = DecisionVPN
-		} else {
-			decision = DecisionDirect
+		isBlocked := l.hck.IsBlocked(l.ctx, rr.FQDN, rr.IP.String(), rr.Kind)
+		isVPNSite := l.isVpnSiteCached(rr.Site)
+		log.Debug().
+			Str("site", rr.Site).
+			Str("fqdn", rr.FQDN).
+			Bool("blocked", isBlocked).
+			Bool("vpn_site", isVPNSite).
+			Msg("checked")
+
+		switch {
+		case !isBlocked && !isVPNSite:
+			l.decisions.Set(rr.Site, DecisionDirect, l.decisionsTTL)
+		case isBlocked && !isVPNSite:
+			l.updateBGPRecords(rr.Site, false)
+			fallthrough
+		default:
+			cached, _ := l.vpnSites.Fetch(rr.Site, l.vpnSitesTTL, func() (*VPNSite, error) {
+				return &VPNSite{
+					blockedFqdns: map[string]struct{}{},
+				}, nil
+			})
+			vpnSite := cached.Value()
+			vpnSite.mu.Lock()
+			vpnSite.blockedFqdns[rr.FQDN] = struct{}{}
+			vpnSite.mu.Unlock()
+			l.decisions.Set(rr.Site, DecisionVPN, l.decisionsTTL)
+		}
+	}
+}
+
+func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
+	ticker := time.NewTicker(recheckPeriod)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-l.closed:
+			return
+		case <-ticker.C:
 		}
 
-		l.decisions.Set(rr.Site, decision, l.decisionsTTL)
-		l.updateBGPRecords(rr.Site, !blocked)
+		l.vpnSites.ForEachFunc(func(site string, item *ccache.Item[*VPNSite]) bool {
+			if item.Expired() {
+				l.vpnSites.Delete(site)
+				l.updateBGPRecords(site, true)
+				return true
+			}
+
+			vpnSite := item.Value()
+			vpnSite.mu.Lock()
+			fqdns := make([]string, 0, len(vpnSite.blockedFqdns))
+			for fqdn := range vpnSite.blockedFqdns {
+				fqdns = append(fqdns, fqdn)
+			}
+			vpnSite.mu.Unlock()
+
+			var siteBlocked bool
+			for _, fqdn := range fqdns {
+				var rrs []dnssrv.RR
+				l.dnsCache.ForEachFunc(site, func(_ string, item *ccache.Item[dnssrv.RR]) bool {
+					if !item.Expired() {
+						rrs = append(rrs, item.Value())
+					}
+
+					return true
+				})
+
+				var isBlocked bool
+				for _, rr := range rrs {
+					isBlocked = l.hck.IsBlocked(l.ctx, fqdn, rr.IP.String(), rr.Kind)
+					if isBlocked {
+						break
+					}
+				}
+
+				siteBlocked = siteBlocked || isBlocked
+				if isBlocked {
+					siteBlocked = true
+				}
+			}
+
+			if !siteBlocked {
+				l.vpnSites.Delete(site)
+				l.updateBGPRecords(site, true)
+				return true
+			}
+
+			return true
+		})
 	}
 }
 
@@ -173,7 +269,7 @@ func (l *SiteLord) upsertRR(rr dnssrv.RR) {
 }
 
 func (l *SiteLord) updateBGPRecords(site string, delete bool) {
-	l.ipsHistory.ForEachFunc(site, func(key string, item *ccache.Item[dnssrv.RR]) bool {
+	l.dnsCache.ForEachFunc(site, func(key string, item *ccache.Item[dnssrv.RR]) bool {
 		rr := item.Value()
 		if item.Expired() || delete {
 			l.deleteRR(rr)
@@ -191,87 +287,55 @@ func (l *SiteLord) onResolvedIP(rr dnssrv.RR) {
 		log.Warn().Str("fqdn", rr.FQDN).Err(err).Msg("unable to get site from fqdn")
 	} else {
 		ipKey := rr.FQDN + rr.IP.String()
-		if item := l.ipsHistory.GetWithoutPromote(site, ipKey); item == nil {
-			l.ipsHistory.Set(site, ipKey, rr, l.ipsHistoryTTL)
+		if item := l.dnsCache.GetWithoutPromote(site, ipKey); item == nil {
+			l.dnsCache.Set(site, ipKey, rr, l.dnsCacheTTL)
 		} else {
-			item.Extend(l.ipsHistoryTTL)
+			item.Extend(l.dnsCacheTTL)
 		}
 	}
 
-	decision, err := l.fqdnDecision(rr.FQDN, site)
-	if err != nil {
-		log.Error().
-			Str("fqdn", rr.FQDN).
-			Str("resolved_ip", rr.IP.String()).
-			Err(err).
-			Msg("unable to make decision")
-		return
-	}
-
-	log.Debug().Uint8("des", uint8(decision)).Str("fqdn", rr.FQDN).Msg("des")
-	switch decision {
+	switch l.fqdnDecision(rr.FQDN, site) {
 	case DecisionDirect:
-		return
-	case DecisionCheck:
-		l.toCheck <- siteRR{
+	case DecisionVPN:
+		l.upsertRR(rr)
+	case DecisionVPNCheck:
+		l.upsertRR(rr)
+		fallthrough
+	case DecisionDirectCheck:
+		l.checkQueue <- siteRR{
 			RR:   rr,
 			Site: site,
 		}
 		return
-	case DecisionVPN:
-		switch rr.Kind {
-		case dnssrv.IPKindV4:
-			err = l.bgp.UpsertIPv4Net(net.IPNet{
-				IP:   rr.IP,
-				Mask: net.CIDRMask(32, 8*net.IPv4len),
-			})
-		case dnssrv.IPKindV6:
-			err = l.bgp.UpsertIPv6Net(net.IPNet{
-				IP:   rr.IP,
-				Mask: net.CIDRMask(32, 8*net.IPv6len),
-			})
-		default:
-			err = fmt.Errorf("unsupported ip kind: %s", rr.Kind)
-		}
-
-		if err != nil {
-			log.Error().
-				Str("fqdn", rr.FQDN).
-				Str("resolved_ip", rr.IP.String()).
-				Err(err).
-				Msg("unable to upsert IP to BGP")
-			return
-		}
-
-		log.Debug().
-			Str("fqdn", rr.FQDN).
-			Str("resolved_ip", rr.IP.String()).
-			Msg("added IP")
-		return
 	}
 }
 
-func (l *SiteLord) fqdnDecision(fqdn, site string) (Decision, error) {
+func (l *SiteLord) fqdnDecision(fqdn, site string) Decision {
 	switch {
 	case containsFqdn(l.directDomains, fqdn):
-		return DecisionDirect, nil
+		return DecisionDirect
 	case containsFqdn(l.vpnDomains, fqdn):
-		return DecisionVPN, nil
+		return DecisionVPN
 	case site == "":
 		// can't properly work w/o site
-		return DecisionDirect, nil
+		return DecisionDirect
 	}
 
-	cached := l.decisions.Get(site)
-	if cached == nil {
-		return DecisionCheck, nil
+	decision := DecisionDirectCheck
+	if l.isVpnSiteCached(site) {
+		decision = DecisionVPNCheck
 	}
 
-	if cached.Expired() {
-		return DecisionCheck, nil
+	cached := l.decisions.Get(fqdn)
+	if cached == nil || cached.Expired() {
+		return decision
 	}
 
-	return cached.Value(), nil
+	return cached.Value()
+}
+
+func (l *SiteLord) isVpnSiteCached(site string) bool {
+	return l.vpnSites.Get(site) != nil
 }
 
 func containsFqdn(fqdnSlice []string, fqdn string) bool {

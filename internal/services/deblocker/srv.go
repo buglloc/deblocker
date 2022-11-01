@@ -35,6 +35,8 @@ func NewServer(cfg *config.Config) (*Server, error) {
 			WithPeerASN(cfg.BGP.PeerASN).
 			WithPeerAuthPassword(cfg.BGP.PeerAuthPassword).
 			WithPeerNet(cfg.BGP.PeerNets...).
+			WithNextHopIPv4(cfg.BGP.NextHopIPv4).
+			WithNextHopIPv6(cfg.BGP.NextHopIPv6).
 			Build(),
 	)
 	if err != nil {

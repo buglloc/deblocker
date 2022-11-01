@@ -36,6 +36,8 @@ type BGP struct {
 	PeerASN          uint32   `yaml:"peer_asn"`
 	PeerAuthPassword string   `yaml:"peer_auth_password"`
 	PeerNets         []string `yaml:"peer_nets"`
+	NextHopIPv4      string   `yaml:"next_hop_v4"`
+	NextHopIPv6      string   `yaml:"next_hop_v6"`
 }
 
 type Checker struct {
@@ -47,6 +49,9 @@ type Checker struct {
 	IPHistoryTTL  time.Duration `yaml:"ip_history_ttl"`
 	DecisionsSize int64         `yaml:"decisions_size"`
 	DecisionsTTL  time.Duration `yaml:"decisions_ttl"`
+	VPNSitesSize  int64         `yaml:"vpn_sites_size"`
+	VPNSitesTTL   time.Duration `yaml:"vpn_sites_ttl"`
+	RecheckPeriod time.Duration `yaml:"recheck_period"`
 	DirectDomains []string      `yaml:"direct_domains"`
 	VPNDomains    []string      `yaml:"vpn_domains"`
 }
@@ -88,6 +93,8 @@ func LoadConfig(configs ...string) (*Config, error) {
 				"0.0.0.0/0",
 				"::/0",
 			},
+			NextHopIPv4: "87.250.250.242",
+			NextHopIPv6: "2a02:6b8::2:242",
 		},
 		Checker: Checker{
 			Concurrency:   32,
@@ -99,6 +106,9 @@ func LoadConfig(configs ...string) (*Config, error) {
 			DirectDomains: []string{
 				".ru",
 			},
+			VPNSitesSize:  32384,
+			VPNSitesTTL:   24 * 7 * time.Hour,
+			RecheckPeriod: 30 * time.Minute,
 		},
 	}
 
