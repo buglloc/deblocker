@@ -23,7 +23,7 @@ var CommunitiesAttribute = apbMustNew(&bgpapi.CommunitiesAttribute{
 })
 
 var OriginAttribute = apbMustNew(&bgpapi.OriginAttribute{
-	Origin: 0,
+	Origin: 1, // eBGP
 })
 
 func apbMustNew(msg proto.Message) *apb.Any {
