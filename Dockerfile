@@ -4,10 +4,10 @@ WORKDIR /go/src/app
 COPY . .
 
 RUN go mod download
-RUN CGO_ENABLED=0 go build -o /go/bin/deblocked ./cmd/deblocked
+RUN CGO_ENABLED=0 go build -o /go/bin/deblockerd ./cmd/deblockerd
 
 FROM debian:bullseye-backports
 
-COPY --from=build /go/bin/deblocked /
+COPY --from=build /go/bin/deblockerd /
 
-ENTRYPOINT ["/deblocked"]
+ENTRYPOINT ["/deblockerd"]
