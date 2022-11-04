@@ -19,14 +19,14 @@ const (
 )
 
 type Server struct {
-	upstream     string
-	handler      IPHandler
-	clientFilter ClientFilter
-	srvCfg       *ServerConfig
-	dnsc         *dns.Client
-	closed       chan struct{}
-	ctx          context.Context
-	shutdownFn   context.CancelFunc
+	upstream      string
+	handler       IPHandler
+	handleFilters []handleFilter
+	srvCfg        *ServerConfig
+	dnsc          *dns.Client
+	closed        chan struct{}
+	ctx           context.Context
+	shutdownFn    context.CancelFunc
 }
 
 func NewServer(srvCfg *ServerConfig, clientCfg *ClientConfig) (*Server, error) {
@@ -40,10 +40,10 @@ func NewServer(srvCfg *ServerConfig, clientCfg *ClientConfig) (*Server, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		upstream:     clientCfg.addr,
-		handler:      srvCfg.handler,
-		clientFilter: srvCfg.clientFilter,
-		srvCfg:       srvCfg,
+		upstream:      clientCfg.addr,
+		handler:       srvCfg.handler,
+		handleFilters: srvCfg.handleFilters,
+		srvCfg:        srvCfg,
 		dnsc: &dns.Client{
 			Net: clientCfg.net,
 			TLSConfig: &tls.Config{
@@ -115,14 +115,12 @@ func (s *Server) srvHandler(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 
-	if s.clientFilter == nil || s.clientFilter(clientIP(w.RemoteAddr())) {
-		s.processHandler(rsp, r)
-	}
+	s.processHandler(rsp, r, clientIP(w.RemoteAddr()))
 
 	_ = w.WriteMsg(rsp)
 }
 
-func (s *Server) processHandler(rsp, req *dns.Msg) {
+func (s *Server) processHandler(rsp, req *dns.Msg, clientIP net.IP) {
 	if s.handler == nil {
 		return
 	}
@@ -149,23 +147,35 @@ func (s *Server) processHandler(rsp, req *dns.Msg) {
 			ttl = minimumTTL
 		}
 
+		handlerRR := RR{
+			FQDN: fqdn,
+			TTL:  ttl,
+		}
 		switch v := rr.(type) {
 		case *dns.A:
-			s.handler(RR{
-				FQDN: fqdn,
-				Kind: IPKindV4,
-				IP:   v.A,
-				TTL:  ttl,
-			})
+			handlerRR.Kind = IPKindV4
+			handlerRR.IP = v.A
 		case *dns.AAAA:
-			s.handler(RR{
-				FQDN: fqdn,
-				Kind: IPKindV4,
-				IP:   v.AAAA,
-				TTL:  ttl,
-			})
+			handlerRR.Kind = IPKindV4
+			handlerRR.IP = v.AAAA
+		}
+
+		if !s.checkHandlerConditions(handlerRR, clientIP) {
+			continue
+		}
+
+		s.handler(handlerRR)
+	}
+}
+
+func (s *Server) checkHandlerConditions(rr RR, clientIP net.IP) bool {
+	for _, f := range s.handleFilters {
+		if !f(rr, clientIP) {
+			return false
 		}
 	}
+
+	return true
 }
 
 func (s *Server) newServer(addr *url.URL) *dns.Server {

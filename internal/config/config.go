@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/buglloc/deblocker/internal/services/dnssrv"
 )
 
 type DNSServer struct {
@@ -23,9 +25,10 @@ type DNSClient struct {
 }
 
 type DNS struct {
-	Server         DNSServer `yaml:"server"`
-	Client         DNSClient `yaml:"client"`
-	ObservableNets []string  `yaml:"observable_nets"`
+	Server          DNSServer       `yaml:"server"`
+	Client          DNSClient       `yaml:"client"`
+	ObservableNets  []string        `yaml:"observable_nets"`
+	ObservableProto []dnssrv.IPKind `yaml:"observable_proto"`
 }
 
 type BGP struct {
@@ -81,6 +84,9 @@ func LoadConfig(configs ...string) (*Config, error) {
 				DialTimeout:  2 * time.Second,
 				ReadTimeout:  2 * time.Second,
 				WriteTimeout: 2 * time.Second,
+			},
+			ObservableProto: []dnssrv.IPKind{
+				dnssrv.IPKindV4,
 			},
 		},
 		BGP: BGP{

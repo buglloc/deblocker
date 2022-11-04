@@ -17,7 +17,7 @@ const (
 
 type ServerConfig struct {
 	addrs         []*url.URL
-	clientFilter  ClientFilter
+	handleFilters []handleFilter
 	handler       IPHandler
 	maxTCPQueries int
 	readTimeout   time.Duration
@@ -68,7 +68,7 @@ func (c *ServerConfig) WithObservableNets(nets ...string) *ServerConfig {
 		allowedNets[i] = ipnet
 	}
 
-	c.clientFilter = func(ip net.IP) bool {
+	c.handleFilters = append(c.handleFilters, func(_ RR, ip net.IP) bool {
 		for _, ipnet := range allowedNets {
 			if ipnet.Contains(ip) {
 				return true
@@ -76,7 +76,24 @@ func (c *ServerConfig) WithObservableNets(nets ...string) *ServerConfig {
 		}
 
 		return false
+	})
+	return c
+}
+
+func (c *ServerConfig) WithObservableIPKinds(kinds ...IPKind) *ServerConfig {
+	if len(kinds) == 0 {
+		return c
 	}
+
+	allowedKinds := make(map[IPKind]struct{}, len(kinds))
+	for _, k := range kinds {
+		allowedKinds[k] = struct{}{}
+	}
+
+	c.handleFilters = append(c.handleFilters, func(rr RR, _ net.IP) bool {
+		_, ok := allowedKinds[rr.Kind]
+		return ok
+	})
 	return c
 }
 

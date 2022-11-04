@@ -142,11 +142,13 @@ func (l *SiteLord) Shutdown(ctx context.Context) error {
 
 func (l *SiteLord) checkWorker(toCheck <-chan siteRR) {
 	for rr := range toCheck {
-		isBlocked := l.hck.IsBlocked(l.ctx, rr.FQDN, rr.IP.String(), rr.Kind)
+		ipStr := rr.IP.String()
+		isBlocked, _ := l.hck.IsBlocked(l.ctx, rr.FQDN, ipStr, rr.Kind)
 		isVPNSite := l.isVpnSiteCached(rr.Site)
 		log.Debug().
 			Str("site", rr.Site).
 			Str("fqdn", rr.FQDN).
+			Str("ip", ipStr).
 			Bool("blocked", isBlocked).
 			Bool("vpn_site", isVPNSite).
 			Msg("checked")
@@ -159,6 +161,13 @@ func (l *SiteLord) checkWorker(toCheck <-chan siteRR) {
 			fallthrough
 		default:
 			cached, _ := l.vpnSites.Fetch(rr.Site, l.vpnSitesTTL, func() (*VPNSite, error) {
+				log.Info().
+					Str("source", "online_check").
+					Str("site", rr.Site).
+					Str("fqdn", rr.FQDN).
+					Str("ip", ipStr).
+					Msg("new blocked site detected")
+
 				return &VPNSite{
 					blockedFqdns: map[string]struct{}{},
 				}, nil
@@ -176,6 +185,7 @@ func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
 	ticker := time.NewTicker(recheckPeriod)
 	defer ticker.Stop()
 
+	logger := log.With().Str("source", "offline_check").Logger()
 	for {
 		select {
 		case <-l.closed:
@@ -211,8 +221,18 @@ func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
 
 				var isBlocked bool
 				for _, rr := range rrs {
-					isBlocked = l.hck.IsBlocked(l.ctx, fqdn, rr.IP.String(), rr.Kind)
-					if isBlocked {
+					ipStr := rr.IP.String()
+					blocked, err := l.hck.IsBlocked(l.ctx, fqdn, ipStr, rr.Kind)
+					if err != nil {
+						logger.Warn().
+							Str("fqdn", fqdn).
+							Str("ip", ipStr).
+							Err(err).
+							Msg("unable to check blocked state")
+					}
+
+					if blocked {
+						isBlocked = true
 						break
 					}
 				}
@@ -224,11 +244,18 @@ func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
 			}
 
 			if !siteBlocked {
+				logger.Info().
+					Str("site", site).
+					Msg("site is not blocked anymore and will be excluded from the VPN route")
 				l.vpnSites.Delete(site)
 				l.updateBGPRecords(site, true)
 				return true
 			}
 
+			logger.Info().
+				Str("site", site).
+				Msg("site is still blocked, raise it's state TTL")
+			item.Extend(l.vpnSitesTTL)
 			return true
 		})
 	}

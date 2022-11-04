@@ -53,7 +53,10 @@ func main() {
 				ipKind = dnssrv.IPKindV6
 			}
 
-			blocked := checker.IsBlocked(context.Background(), fqdn, ip.String(), ipKind)
+			blocked, err := checker.IsBlocked(context.Background(), fqdn, ip.String(), ipKind)
+			if err != nil {
+				log.Error().Err(err).Msg("unable to check")
+			}
 			fmt.Println(blocked)
 		}
 	}

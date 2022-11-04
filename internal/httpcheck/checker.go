@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/buglloc/certifi"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/buglloc/deblocker/internal/services/dnssrv"
 )
@@ -57,33 +58,37 @@ func NewChecker(cfg *CheckerConfig) (*Checker, error) {
 	}, nil
 }
 
-func (c *Checker) IsBlocked(ctx context.Context, fqdn, ip string, ipKind dnssrv.IPKind) bool {
+func (c *Checker) IsBlocked(ctx context.Context, fqdn, ip string, ipKind dnssrv.IPKind) (bool, error) {
 	fqdn = c.resolverAdd(fqdn, ip, ipKind)
 	defer c.resolver.Del(fqdn)
 	uri := "https://" + fqdn
 
-	doCheck := func() bool {
+	doCheck := func() (bool, error) {
 		var wg sync.WaitGroup
 		wg.Add(2)
 
 		var directOK bool
+		var directErr error
 		go func() {
 			defer wg.Done()
 
-			ok, _ := c.checkFqdn(ctx, c.directHTTPc, uri)
-			directOK = ok
+			directOK, directErr = c.checkFqdn(ctx, c.directHTTPc, uri)
 		}()
 
 		var vpnOK bool
+		var vpnErr error
 		go func() {
 			defer wg.Done()
 
-			ok, _ := c.checkFqdn(ctx, c.vpnHTTPc, uri)
-			vpnOK = ok
+			vpnOK, vpnErr = c.checkFqdn(ctx, c.vpnHTTPc, uri)
 		}()
 
 		wg.Wait()
-		return !directOK && vpnOK
+
+		if directErr != nil && vpnErr != nil {
+			return false, multierror.Append(ErrCheckFailed, directErr, vpnErr)
+		}
+		return !directOK && vpnOK, nil
 	}
 
 	return doCheck()
