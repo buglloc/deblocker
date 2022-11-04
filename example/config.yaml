@@ -29,7 +29,7 @@ bgp:
   next_hop_v4: 10.8.2.1
   next_hop_v6: fd41:ce44:b4c9:44ca::1
 checker:
-  direct_dev: wlan0
+  direct_dev: eth0
   vpn_dev: eu
   concurrency: 32
   queue_size: 1024
