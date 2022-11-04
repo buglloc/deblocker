@@ -156,8 +156,10 @@ func (s *Server) processHandler(rsp, req *dns.Msg, clientIP net.IP) {
 			handlerRR.Kind = IPKindV4
 			handlerRR.IP = v.A
 		case *dns.AAAA:
-			handlerRR.Kind = IPKindV4
+			handlerRR.Kind = IPKindV6
 			handlerRR.IP = v.AAAA
+		default:
+			continue
 		}
 
 		if !s.checkHandlerConditions(handlerRR, clientIP) {
