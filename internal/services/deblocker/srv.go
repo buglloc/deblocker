@@ -52,6 +52,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		dnssrv.NewServerConfig().
 			WithAddrs(cfg.DNS.Server.Addrs...).
 			WithObservableNets(cfg.DNS.ObservableNets...).
+			WithObservableIPKinds(cfg.DNS.ObservableProto...).
 			WithMaxTCPQueries(cfg.DNS.Server.MaxTCPQueries).
 			WithReadTimeout(cfg.DNS.Server.ReadTimeout).
 			WithWriteTimeout(cfg.DNS.Server.WriteTimeout).
