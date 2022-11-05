@@ -1,35 +1,62 @@
-debug: true
+# enables more verbose logging
+debug: false
+
+# DNS configuration
 dns:
+
+  # DNS server configuration
   server:
+    # addrs to listen on
     addrs:
       - tcp://:53
       - udp://:53
+    # some 
     max_tcp_queries: -1
     read_timeout: 2s
     write_timeout: 2s
+
+  # DNS upstream configuration
   client:
     addr: tcp://1.1.1.1:53
     dial_timeout: 2s
     read_timeout: 2s
     write_timeout: 2s
+
+  # client filters by IP and proto version
   observable_nets:
     - 127.0.0.0/24
     - 192.168.3.1/24
   observable_proto:
     - ipv4
+
+# BGP server configuration
 bgp:
+  # Port to listen on
   listen_port: 179
+  # Addrs to listen on (any by default)
   listen_addrs: []
+  # deblocker router id
   router_id: 1.3.3.7
+  # deblocker ASN
   router_asn: 65543
+  # dynamic neighbor ASN
   peer_asn: 65542
+  # peers pathword, also reads from env[BGP_PEER_AUTH_PASSWORD]
+  peer_auth_password: my_cool_pwd
+  # dynamic neighbor prefixes
   peer_nets:
     - 0.0.0.0/0
     - ::/0
+  # next hop for IPv4 path
   next_hop_v4: 10.8.2.1
+  # next hop for IPv6 path
   next_hop_v6: fd41:ce44:b4c9:44ca::1
+
+# HTTPS checker configuration
 checker:
+  # interface with direct connection
   direct_dev: eth0
+  # interface with VPN connection. I prefer WireGuard, but you could use what you want
   vpn_dev: eu
   concurrency: 32
   queue_size: 1024
@@ -37,3 +64,10 @@ checker:
   ip_history_ttl: 10m0s
   decisions_size: 129536
   decisions_ttl: 30m0s
+  
+  # sites that always go to the direct direction
+  direct_domains:
+    - .ru
+  # VPN sites :)
+  vpn_domains:
+    - meduza.io
