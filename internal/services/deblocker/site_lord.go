@@ -193,10 +193,10 @@ func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
 		case <-ticker.C:
 		}
 
+		var toDelete []string
 		l.vpnSites.ForEachFunc(func(site string, item *ccache.Item[*VPNSite]) bool {
 			if item.Expired() {
-				l.vpnSites.Delete(site)
-				l.updateBGPRecords(site, true)
+				toDelete = append(toDelete, site)
 				return true
 			}
 
@@ -247,8 +247,7 @@ func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
 				logger.Info().
 					Str("site", site).
 					Msg("site is not blocked anymore and will be excluded from the VPN route")
-				l.vpnSites.Delete(site)
-				l.updateBGPRecords(site, true)
+				toDelete = append(toDelete, site)
 				return true
 			}
 
@@ -258,6 +257,11 @@ func (l *SiteLord) offlineWorker(recheckPeriod time.Duration) {
 			item.Extend(l.vpnSitesTTL)
 			return true
 		})
+
+		for _, site := range toDelete {
+			l.vpnSites.Delete(site)
+			l.updateBGPRecords(site, true)
+		}
 	}
 }
 
