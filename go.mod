@@ -6,7 +6,7 @@ require (
 	github.com/buglloc/certifi v0.9.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/karlseguin/ccache/v3 v3.0.3
-	github.com/miekg/dns v1.1.51
+	github.com/miekg/dns v1.1.52
 	github.com/osrg/gobgp/v3 v3.12.0
 	github.com/rs/zerolog v1.29.0
 	github.com/spf13/cobra v1.6.1
