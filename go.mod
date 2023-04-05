@@ -9,7 +9,7 @@ require (
 	github.com/miekg/dns v1.1.53
 	github.com/osrg/gobgp/v3 v3.13.0
 	github.com/rs/zerolog v1.29.0
-	github.com/spf13/cobra v1.6.1
+	github.com/spf13/cobra v1.7.0
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/net v0.8.0
 	golang.org/x/sync v0.1.0
