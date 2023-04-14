@@ -8,7 +8,7 @@ require (
 	github.com/karlseguin/ccache/v3 v3.0.3
 	github.com/miekg/dns v1.1.53
 	github.com/osrg/gobgp/v3 v3.13.0
-	github.com/rs/zerolog v1.29.0
+	github.com/rs/zerolog v1.29.1
 	github.com/spf13/cobra v1.7.0
 	go.uber.org/automaxprocs v1.5.2
 	golang.org/x/net v0.9.0
