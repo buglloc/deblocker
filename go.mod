@@ -10,7 +10,7 @@ require (
 	github.com/osrg/gobgp/v3 v3.16.0
 	github.com/rs/zerolog v1.29.1
 	github.com/spf13/cobra v1.7.0
-	go.uber.org/automaxprocs v1.5.2
+	go.uber.org/automaxprocs v1.5.3
 	golang.org/x/net v0.12.0
 	golang.org/x/sync v0.3.0
 	google.golang.org/protobuf v1.31.0
