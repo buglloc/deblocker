@@ -1,4 +1,4 @@
-FROM golang:1.19.2 as build
+FROM golang:1.20.7 as build
 
 WORKDIR /go/src/app
 COPY . .
@@ -6,7 +6,7 @@ COPY . .
 RUN go mod download
 RUN CGO_ENABLED=0 go build -o /go/bin/deblockerd ./cmd/deblockerd
 
-FROM debian:bullseye-backports
+FROM debian:bookworm-slim
 
 COPY --from=build /go/bin/deblockerd /
 
