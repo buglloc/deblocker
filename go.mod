@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/buglloc/certifi v0.9.1
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/karlseguin/ccache/v3 v3.0.3
+	github.com/karlseguin/ccache/v3 v3.0.4
 	github.com/miekg/dns v1.1.56
 	github.com/osrg/gobgp/v3 v3.19.0
 	github.com/rs/zerolog v1.31.0
