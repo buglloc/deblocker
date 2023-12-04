@@ -3,7 +3,7 @@ module github.com/buglloc/deblocker
 go 1.19
 
 require (
-	github.com/buglloc/certifi v0.9.1
+	github.com/buglloc/certifi v0.9.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/karlseguin/ccache/v3 v3.0.5
 	github.com/miekg/dns v1.1.57
